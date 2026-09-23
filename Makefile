@@ -17,7 +17,7 @@ test:
 
 security:
 	$(PYTHON) -m pip check
-	$(PYTHON) -m pip_audit
+	$(PYTHON) -m pip_audit --skip-editable
 
 check: lint typecheck test
 	bash -n recipes/verl/run_search_r1_grpo.sh

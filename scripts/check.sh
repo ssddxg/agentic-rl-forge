@@ -143,7 +143,7 @@ if [[ "$run_security" == true ]]; then
   if ! "$PYTHON" -c 'import pip_audit' >/dev/null 2>&1; then
     fail "pip-audit is not installed. Rerun $SCRIPT_DIR/setup.sh (without --runtime-only)."
   fi
-  run_step "Auditing installed dependencies" "$PYTHON" -m pip_audit
+  run_step "Auditing installed dependencies" "$PYTHON" -m pip_audit --skip-editable
 fi
 
 printf '\nAll requested quality checks passed in %s seconds.\n' "$((SECONDS - started_at))"

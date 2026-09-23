@@ -191,6 +191,10 @@ No long-lived PyPI API token is stored in the repository.
 
 Before pushing a release tag:
 
+Dependency audits use `pip-audit --skip-editable`: the unpublished checkout itself is excluded from
+PyPI vulnerability lookup, while its installed non-editable third-party dependencies remain in
+scope.
+
 1. Move the intended changes under a dated heading in `CHANGELOG.md` and set the same version in
    `pyproject.toml` and `agentic_rl_forge.__version__`.
 2. Run `make release-check` and the strict `arf release-audit` command above from a clean commit.

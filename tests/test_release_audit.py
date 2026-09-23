@@ -176,6 +176,57 @@ def test_release_audit_finds_git_bash_on_windows(
     assert ReleaseAuditor._find_recipe_shell("win32") == str(bash)
 
 
+def test_release_audit_skips_editable_package_but_audits_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auditor = ReleaseAuditor(tmp_path)
+    commands: list[tuple[str, ...]] = []
+
+    def record_command(command: tuple[str, ...], *, timeout: int) -> tuple[int, str]:
+        assert timeout == 300
+        commands.append(command)
+        return 0, ""
+
+    monkeypatch.setattr(auditor, "_command", record_command)
+    monkeypatch.setattr(auditor, "_find_recipe_shell", lambda: None)
+
+    findings = auditor._quality_commands()
+
+    pip_audit_commands = [
+        command for command in commands if command[:3] == (sys.executable, "-m", "pip_audit")
+    ]
+    assert pip_audit_commands == [(sys.executable, "-m", "pip_audit", "--skip-editable")]
+    assert all(finding.severity is not AuditSeverity.ERROR for finding in findings)
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "expected"),
+    [
+        ("Makefile", "$(PYTHON) -m pip_audit --skip-editable"),
+        (
+            ".github/workflows/ci.yml",
+            "- run: python -m pip_audit --skip-editable",
+        ),
+        (
+            "scripts/check.ps1",
+            '-Arguments @("-m", "pip_audit", "--skip-editable")',
+        ),
+        (
+            "scripts/check.sh",
+            '"$PYTHON" -m pip_audit --skip-editable',
+        ),
+    ],
+)
+def test_dependency_audit_entrypoints_skip_editable_package(
+    relative_path: str,
+    expected: str,
+) -> None:
+    project = Path(__file__).resolve().parents[1]
+
+    assert expected in (project / relative_path).read_text(encoding="utf-8")
+
+
 def test_current_repository_audit_has_no_documentation_placeholders(tmp_path: Path) -> None:
     project = Path(__file__).resolve().parents[1]
     output = tmp_path / "release-audit.json"

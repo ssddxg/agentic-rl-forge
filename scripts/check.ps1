@@ -165,7 +165,7 @@ if missing:
                 throw "pip-audit is not installed. Rerun setup.ps1 without -RuntimeOnly."
             }
             Invoke-Native -Description "Auditing installed dependencies" -FilePath $python `
-                -Arguments @("-m", "pip_audit")
+                -Arguments @("-m", "pip_audit", "--skip-editable")
         }
     }
     finally {

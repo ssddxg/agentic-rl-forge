@@ -338,7 +338,10 @@ class ReleaseAuditor:
             ),
             ("quality.pytest", (sys.executable, "-m", "pytest", "-q")),
             ("quality.pip-check", (sys.executable, "-m", "pip", "check")),
-            ("quality.pip-audit", (sys.executable, "-m", "pip_audit")),
+            (
+                "quality.pip-audit",
+                (sys.executable, "-m", "pip_audit", "--skip-editable"),
+            ),
         ]
         recipe_shell = self._find_recipe_shell()
         if recipe_shell is not None:
