@@ -72,7 +72,7 @@ signing = [
 ]
 dev = [
   "build>=1.2,<2",
-  "mypy>=1.13,<2",
+  "mypy>=1.13,<3",
   "pip-audit>=2.10,<3",
   "pytest>=9.0.3,<10",
   "pytest-asyncio>=1,<2",
