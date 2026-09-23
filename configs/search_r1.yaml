@@ -1,0 +1,38 @@
+project:
+  name: search-r1-qwen2.5-3b
+  seed: 42
+
+model:
+  name_or_path: Qwen/Qwen2.5-3B-Instruct
+  policy_version: qwen2.5-3b-search-r1-v1
+  endpoint: http://127.0.0.1:8001
+  rollout_engine: vllm
+
+rollout:
+  group_size: 5
+  max_steps: 5
+  max_tokens_per_step: 500
+  max_concurrency: 120
+  temperature: 1.0
+  top_p: 1.0
+  retrieved_token_loss_mask: true
+
+retrieval:
+  endpoint: http://127.0.0.1:8000/retrieve
+  top_k: 3
+  timeout_s: 30
+
+reward:
+  outcome: exact_match
+  success: 1.0
+  failure: 0.0
+  per_tool_call: -0.002
+  per_generated_token: -0.00001
+  repeated_action_penalty: -0.2
+
+grpo:
+  learning_rate: 0.000001
+  epsilon: 0.00000001
+  clip_ratio: 0.2
+  kl_coefficient: 0.001
+

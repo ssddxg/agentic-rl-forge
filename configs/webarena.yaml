@@ -1,0 +1,39 @@
+project:
+  name: webarena-agent-rl
+  seed: 42
+
+model:
+  name_or_path: Qwen/Qwen3-8B
+  policy_version: qwen3-8b-webarena-v1
+  endpoint: http://127.0.0.1:8001
+  rollout_engine: sglang
+
+environment:
+  endpoint: http://127.0.0.1:8010
+  version: webarena-isolated-v1
+  max_concurrency: 64
+  reset_timeout_s: 120
+  snapshot_each_step: true
+
+rollout:
+  group_size: 8
+  max_steps: 30
+  max_tokens_per_step: 1024
+  repeated_action_limit: 3
+
+tree_search:
+  enabled: true
+  min_simulations: 4
+  max_simulations: 64
+  min_branch_factor: 2
+  max_branch_factor: 8
+  max_depth: 8
+  exploration: 1.5
+  prune_below: -0.8
+
+hindsight:
+  enabled: true
+  min_goal_confidence: 0.7
+  min_verifier_confidence: 0.9
+  max_goals_per_trajectory: 4
+

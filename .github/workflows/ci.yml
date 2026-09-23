@@ -1,0 +1,275 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev,studio,research,signing]"
+      - run: ruff check .
+      - run: ruff format --check src tests examples
+      - run: mypy src examples/offline_pipeline.py
+      - run: pytest --cov=agentic_rl_forge --cov-report=term-missing
+      - run: bash -n scripts/setup.sh scripts/start-studio.sh scripts/check.sh recipes/verl/run_search_r1_grpo.sh
+
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip build twine
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - name: Verify the wheel contains the complete Studio web app
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheels = list(Path("dist").glob("*.whl"))
+          assert len(wheels) == 1, wheels
+          required = {
+              "agentic_rl_forge/studio/static/index.html",
+              "agentic_rl_forge/studio/static/styles.css",
+              "agentic_rl_forge/studio/static/app.js",
+              "agentic_rl_forge/studio/static/icon.svg",
+          }
+          with ZipFile(wheels[0]) as archive:
+              missing = required.difference(archive.namelist())
+          assert not missing, f"wheel is missing Studio assets: {sorted(missing)}"
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-wheel
+          path: dist/*.whl
+          if-no-files-found: error
+
+  wheel-smoke:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-wheel
+          path: dist
+      - run: python -m pip install --upgrade pip
+      - name: Install the wheel with the Studio extra
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          wheels = list(Path("dist").glob("*.whl"))
+          assert len(wheels) == 1, wheels
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", f"{wheels[0].resolve()}[studio]"]
+          )
+          PY
+      - name: Verify installed Studio dependencies and web assets
+        run: |
+          python - <<'PY'
+          from importlib.resources import files
+
+          import docx
+          import fastapi
+          import multipart
+          import pypdf
+
+          assets = files("agentic_rl_forge.studio").joinpath("static")
+          required = ("index.html", "styles.css", "app.js", "icon.svg")
+          assert all(assets.joinpath(name).is_file() for name in required)
+          PY
+      - run: arf doctor --profile core --strict --json
+      - run: arf demo
+      - name: Exercise installed local-search and offline-pipeline commands
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          Path("corpus.jsonl").write_text(
+              json.dumps({"id": "fr", "contents": "Paris is the capital of France."}) + "\n",
+              encoding="utf-8",
+          )
+          Path("qa.jsonl").write_text(
+              json.dumps(
+                  {"id": "q1", "question": "What is the capital of France?", "answer": "Paris"}
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          arf corpus-check corpus.jsonl --json
+          arf search "France capital" --corpus corpus.jsonl --json | \
+            python -c 'import json,sys; assert json.load(sys.stdin)["result"][0][0]["document"]["id"] == "fr"'
+          arf offline-pipeline qa.jsonl corpus.jsonl offline-smoke \
+            --rollouts-per-task 2 --max-concurrency 2
+
+  setup-smoke:
+    name: setup-smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Run one-command setup on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash scripts/setup.sh --runtime-only
+      - name: Run one-command setup on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -RuntimeOnly
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config --quiet
+      - run: docker compose up --detach --build
+      - name: Verify Studio bootstrap, upload, indexing, and search
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          base_url="http://127.0.0.1:7860"
+          origin="$base_url"
+          smoke_dir=".ci-studio-smoke"
+          mkdir -p "$smoke_dir"
+          printf '%s\n' \
+            'Zephyr Lantern 90210 is the private launch phrase.' \
+            'This document verifies persistent local Studio ingestion and search.' \
+            > "$smoke_dir/guide.txt"
+
+          for attempt in {1..45}; do
+            if curl --fail --silent --show-error "$base_url/" > "$smoke_dir/index.html" && \
+               curl --fail --silent --show-error "$base_url/static/app.js" > /dev/null && \
+               curl --fail --silent --show-error --cookie-jar "$smoke_dir/cookies.txt" \
+                 "$base_url/api/v1/bootstrap" > "$smoke_dir/bootstrap.json"; then
+              break
+            fi
+            if [[ "$attempt" == "45" ]]; then
+              docker compose logs
+              exit 1
+            fi
+            sleep 2
+          done
+
+          csrf="$(python -c 'import json; print(json.load(open(".ci-studio-smoke/bootstrap.json", encoding="utf-8"))["security"]["csrfToken"])')"
+          test -n "$csrf"
+
+          curl --fail --silent --show-error \
+            --cookie "$smoke_dir/cookies.txt" \
+            -H "Origin: $origin" \
+            -H "X-CSRF-Token: $csrf" \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"CI Knowledge Base","description":"Container acceptance test"}' \
+            "$base_url/api/v1/knowledge-bases" > "$smoke_dir/knowledge-base.json"
+          knowledge_base_id="$(python -c 'import json; print(json.load(open(".ci-studio-smoke/knowledge-base.json", encoding="utf-8"))["id"])')"
+
+          curl --fail --silent --show-error \
+            --cookie "$smoke_dir/cookies.txt" \
+            -H "Origin: $origin" \
+            -H "X-CSRF-Token: $csrf" \
+            -F "file=@$smoke_dir/guide.txt;type=text/plain" \
+            "$base_url/api/v1/knowledge-bases/$knowledge_base_id/sources" \
+            > "$smoke_dir/upload.json"
+          job_id="$(python -c 'import json; print(json.load(open(".ci-studio-smoke/upload.json", encoding="utf-8"))["job"]["id"])')"
+
+          for attempt in {1..100}; do
+            curl --fail --silent --show-error \
+              --cookie "$smoke_dir/cookies.txt" \
+              "$base_url/api/v1/jobs/$job_id" > "$smoke_dir/job.json"
+            job_status="$(python -c 'import json; print(json.load(open(".ci-studio-smoke/job.json", encoding="utf-8"))["status"])')"
+            if [[ "$job_status" == "completed" || "$job_status" == "succeeded" ]]; then
+              break
+            fi
+            if [[ "$job_status" == "failed" || "$attempt" == "100" ]]; then
+              cat "$smoke_dir/job.json"
+              docker compose logs
+              exit 1
+            fi
+            sleep 0.2
+          done
+
+          curl --fail --silent --show-error \
+            --cookie "$smoke_dir/cookies.txt" \
+            -H "Origin: $origin" \
+            -H "X-CSRF-Token: $csrf" \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"zephyr lantern 90210","topK":3,"mode":"bm25"}' \
+            "$base_url/api/v1/knowledge-bases/$knowledge_base_id/search" \
+            > "$smoke_dir/search.json"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path(".ci-studio-smoke")
+          html = (root / "index.html").read_text(encoding="utf-8")
+          assert "Agentic RL Forge Studio" in html
+          payload = json.loads((root / "search.json").read_text(encoding="utf-8"))
+          assert payload["items"], payload
+          assert any("Zephyr Lantern 90210" in item["contents"] for item in payload["items"])
+          assert payload["items"][0]["sourceName"] == "guide.txt"
+          PY
+      - name: Stop container
+        if: always()
+        run: docker compose down --volumes
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev,studio,signing]"
+      - run: python -m pip check
+      - run: python -m pip_audit

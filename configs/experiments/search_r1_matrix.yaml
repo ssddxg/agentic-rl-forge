@@ -1,0 +1,80 @@
+schema_version: 1
+name: search-r1-sampling-ablation
+base_config: ../search_r1_collection.yaml
+
+fixed_parameters:
+  rollouts_per_task: 5
+
+axes:
+  seed: [42, 43]
+  temperature: [0.8, 1.0]
+
+exclude: []
+
+config_bindings:
+  seed: seed
+  temperature: temperature
+  rollouts_per_task: rollouts_per_task
+
+stages:
+  - name: collect
+    command:
+      - arf
+      - collect-search-r1
+      - examples/data/qa.jsonl
+      - artifacts/experiments/{trial_id}/collection
+      - --config
+      - "{config_path}"
+    inputs:
+      - kind: dataset
+        path: examples/data/qa.jsonl
+      - kind: collection_config
+        path: "{config_path}"
+    outputs:
+      - kind: other
+        path: artifacts/experiments/{trial_id}/collection/trajectories.db
+
+  - name: snapshot-plan
+    depends_on: [collect]
+    command:
+      - python
+      - -c
+      - "from pathlib import Path; import shutil,sys; root=Path('artifacts/experiments/{trial_id}/collection'); plans=tuple(root.glob('plans/*.json')); len(plans)==1 or sys.exit(2); shutil.copyfile(plans[0], root/'rollout-plan.json')"
+    inputs:
+      - kind: other
+        path: artifacts/experiments/{trial_id}/collection/trajectories.db
+    outputs:
+      - kind: rollout_plan
+        path: artifacts/experiments/{trial_id}/collection/rollout-plan.json
+
+  - name: evaluate
+    depends_on: [snapshot-plan]
+    command:
+      - arf
+      - evaluate
+      - artifacts/experiments/{trial_id}/collection/trajectories.db
+      - --benchmark
+      - search-r1
+      - --output
+      - artifacts/experiments/{trial_id}/benchmark.json
+    inputs:
+      - kind: other
+        path: artifacts/experiments/{trial_id}/collection/trajectories.db
+      - kind: rollout_plan
+        path: artifacts/experiments/{trial_id}/collection/rollout-plan.json
+    outputs:
+      - kind: benchmark_report
+        path: artifacts/experiments/{trial_id}/benchmark.json
+    gates:
+      - name: minimum-group-pass-rate
+        artifact_path: artifacts/experiments/{trial_id}/benchmark.json
+        metric: group_pass_rate
+        statistic: value
+        minimum: 0.20
+      - name: maximum-error-rate
+        artifact_path: artifacts/experiments/{trial_id}/benchmark.json
+        metric: error_rate
+        statistic: value
+        maximum: 0.10
+
+max_trials: 8

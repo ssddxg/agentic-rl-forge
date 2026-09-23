@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">AgenticRLForge</title>
+  <desc id="desc">Search and tool agent reinforcement learning infrastructure</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="0.55" stop-color="#0b1628"/>
+      <stop offset="1" stop-color="#16122a"/>
+    </linearGradient>
+    <radialGradient id="core" cx="45%" cy="38%" r="70%">
+      <stop offset="0" stop-color="#b9f7ff"/>
+      <stop offset="0.24" stop-color="#36d7f0"/>
+      <stop offset="0.62" stop-color="#6472ef"/>
+      <stop offset="1" stop-color="#6d3fc2"/>
+    </radialGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#39d9ef" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#9d6cff" stop-opacity="0.8"/>
+    </linearGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#7dd8e8" stroke-opacity="0.055" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="520" rx="28" fill="url(#background)"/>
+  <rect width="1600" height="520" rx="28" fill="url(#grid)"/>
+  <g opacity="0.24" fill="none" stroke="#64ccdf" stroke-width="1">
+    <path d="M70 425 C250 350 300 470 490 395 S760 350 900 410"/>
+    <path d="M160 92 C350 155 380 55 570 105 S820 130 960 75"/>
+  </g>
+  <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+    <text x="92" y="178" fill="#f3fbff" font-size="74" font-weight="720" letter-spacing="-2">AgenticRLForge</text>
+    <text x="96" y="229" fill="#93b9c8" font-size="25" font-weight="430" letter-spacing="1">SEARCH · TOOLS · TREE SEARCH · VERIFIABLE RL</text>
+    <text x="96" y="296" fill="#c4d7df" font-size="22">A production-oriented reinforcement learning stack</text>
+    <text x="96" y="330" fill="#c4d7df" font-size="22">for long-horizon, environment-in-the-loop agents.</text>
+  </g>
+  <g transform="translate(880 260)">
+    <path d="M0 0 C150 -110 225 -110 365 -132" fill="none" stroke="url(#line)" stroke-width="4"/>
+    <path d="M0 0 C165 -18 245 -5 390 0" fill="none" stroke="url(#line)" stroke-width="4"/>
+    <path d="M0 0 C145 105 245 97 365 130" fill="none" stroke="url(#line)" stroke-width="4"/>
+    <path d="M350 -132 L470 -190 M350 -132 L480 -96" fill="none" stroke="#8c70f5" stroke-width="3"/>
+    <path d="M390 0 L505 -42 M390 0 L520 48" fill="none" stroke="#8c70f5" stroke-width="3"/>
+    <path d="M350 130 L470 92 M350 130 L480 188" fill="none" stroke="#8c70f5" stroke-width="3"/>
+    <circle r="65" fill="#17263c" stroke="#45d8ec" stroke-width="3" filter="url(#glow)"/>
+    <circle r="38" fill="url(#core)"/>
+    <circle r="8" fill="#fff" opacity="0.9"/>
+    <g fill="#151c35" stroke="#9a74ff" stroke-width="3">
+      <circle cx="350" cy="-132" r="27"/>
+      <circle cx="390" cy="0" r="27"/>
+      <circle cx="350" cy="130" r="27"/>
+      <circle cx="470" cy="-190" r="18"/>
+      <circle cx="480" cy="-96" r="18"/>
+      <circle cx="505" cy="-42" r="18"/>
+      <circle cx="520" cy="48" r="18"/>
+      <circle cx="470" cy="92" r="18"/>
+      <circle cx="480" cy="188" r="18"/>
+    </g>
+    <g fill="#ffc76c" filter="url(#glow)">
+      <circle cx="350" cy="-132" r="6"/>
+      <circle cx="390" cy="0" r="6"/>
+      <circle cx="350" cy="130" r="6"/>
+    </g>
+  </g>
+  <path d="M1010 429 C875 490 745 470 698 388 C655 314 726 263 812 279" fill="none" stroke="#3cd4e8" stroke-width="3" stroke-dasharray="8 10" opacity="0.6"/>
+  <path d="M802 264 L828 278 L804 294" fill="none" stroke="#3cd4e8" stroke-width="3" opacity="0.7"/>
+</svg>
+

@@ -1,0 +1,42 @@
+schema_version: 1
+name: search-r1-collection
+dataset_name: custom-qa
+model: Qwen/Qwen2.5-3B-Instruct
+policy_version: qwen2.5-3b-search-r1-v1
+model_base_url: http://127.0.0.1:8001
+retrieval_endpoint: http://127.0.0.1:8000/retrieve
+
+rollouts_per_task: 5
+task_offset: 0
+max_tasks: 64
+seed: 42
+max_steps: 5
+max_tokens_per_step: 500
+max_concurrency: 32
+model_max_concurrency: 32
+model_timeout_s: 120
+model_max_retries: 3
+temperature: 1.0
+top_p: 1.0
+run_lease_ttl_s: 60
+heartbeat_interval_s: 15
+enable_slot_claims: true
+slot_claim_ttl_s: 900
+slot_claim_renewal_interval_s: 300
+
+retrieval_top_k: 3
+retrieval_timeout_s: 30
+repeated_action_limit: 3
+
+success_reward: 1.0
+failure_reward: 0.0
+tool_failure_penalty: -0.1
+invalid_action_penalty: -0.25
+repeated_action_penalty: -0.2
+truncated_penalty: -0.1
+error_penalty: -0.5
+per_generated_token: -0.00001
+per_tool_call: -0.002
+
+# Change this value to force a fresh rollout plan with the same model and sampling settings.
+plan_salt: ""

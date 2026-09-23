@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev,studio,research,signing]"
+      - run: make check PYTHON=python
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev,studio,signing]"
+      - run: make security PYTHON=python
+
+  build:
+    needs: [verify, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev,studio,research,signing]"
+      - name: Verify tag matches package version
+        run: |
+          PACKAGE_VERSION=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          test "${GITHUB_REF_NAME}" = "v${PACKAGE_VERSION}"
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - name: Verify the wheel contains the complete Studio web app
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheels = list(Path("dist").glob("*.whl"))
+          assert len(wheels) == 1, wheels
+          required = {
+              "agentic_rl_forge/studio/static/index.html",
+              "agentic_rl_forge/studio/static/styles.css",
+              "agentic_rl_forge/studio/static/app.js",
+              "agentic_rl_forge/studio/static/icon.svg",
+          }
+          with ZipFile(wheels[0]) as archive:
+              missing = required.difference(archive.namelist())
+          assert not missing, f"wheel is missing Studio assets: {sorted(missing)}"
+          PY
+      - name: Verify the built wheel in an isolated environment
+        run: |
+          python -m venv /tmp/arf-wheel-smoke
+          /tmp/arf-wheel-smoke/bin/python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          wheels = list(Path("dist").glob("*.whl"))
+          assert len(wheels) == 1, wheels
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", f"{wheels[0].resolve()}[studio]"]
+          )
+          PY
+          /tmp/arf-wheel-smoke/bin/python - <<'PY'
+          from importlib.resources import files
+
+          import docx
+          import fastapi
+          import multipart
+          import pypdf
+
+          assets = files("agentic_rl_forge.studio").joinpath("static")
+          required = ("index.html", "styles.css", "app.js", "icon.svg")
+          assert all(assets.joinpath(name).is_file() for name in required)
+          PY
+          /tmp/arf-wheel-smoke/bin/arf doctor --profile core --strict
+          /tmp/arf-wheel-smoke/bin/arf demo
+          /tmp/arf-wheel-smoke/bin/arf studio --help
+      - name: Create release audit evidence
+        run: >-
+          arf release-audit --project . --run-checks --build-wheel
+          --output release-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence
+          path: release-audit.json
+          if-no-files-found: error
+
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/agentic-rl-forge/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-github:
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-evidence
+          path: release-evidence/
+      - name: Generate checksums
+        run: cd dist && sha256sum * > SHA256SUMS
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}" dist/* release-evidence/release-audit.json
+          --verify-tag --generate-notes
+          --repo "${GITHUB_REPOSITORY}"

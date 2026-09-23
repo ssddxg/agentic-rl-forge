@@ -1,0 +1,22 @@
+tools:
+  - class_name: agentic_rl_forge.integrations.verl_search_tool.AgenticRLForgeSearchTool
+    config:
+      retrieval_service_url: http://127.0.0.1:8000/retrieve
+      top_k: 3
+      timeout: 30
+      num_workers: 120
+      rate_limit: 120
+    tool_schema:
+      type: function
+      function:
+        name: search
+        description: Retrieve ranked passages for a natural-language query.
+        parameters:
+          type: object
+          properties:
+            query:
+              type: string
+              description: A concise standalone search query.
+          required:
+            - query
+

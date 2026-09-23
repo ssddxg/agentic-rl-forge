@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Agentic RL Forge">
+  <defs>
+    <linearGradient id="g" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7c6df2"/>
+      <stop offset="1" stop-color="#4f8cff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="17" fill="#11131a"/>
+  <path d="M17 22.5 32 14l15 8.5v19L32 50l-15-8.5v-19Z" fill="none" stroke="url(#g)" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m23.5 35.5 6-12h5l6 12M26 31.5h12" fill="none" stroke="#f8f8fb" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="43.5" cy="42" r="3.5" fill="#72e6b1"/>
+</svg>

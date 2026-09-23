@@ -1,0 +1,73 @@
+name: Bug report
+description: Report a reproducible problem in AgenticRLForge.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. Remove secrets, private documents,
+        model outputs containing personal data, and local absolute paths before submitting.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: Include the smallest safe example, command, or sequence of Studio actions.
+      placeholder: |
+        1. Start Studio with ...
+        2. Open ...
+        3. Run ...
+        4. See ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Studio web interface
+        - Offline RL pipeline
+        - Search or knowledge base
+        - Rollout or environment tools
+        - Evaluation or experiments
+        - Installation or packaging
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: 0.3.0 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and Python version
+      placeholder: Windows 11, Python 3.12.7
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste only the necessary lines after removing credentials and private data.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed API keys, tokens, private documents, personal data, and local absolute paths.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true

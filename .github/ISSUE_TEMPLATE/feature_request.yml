@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose a practical improvement to AgenticRLForge.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the user or research workflow that is currently difficult.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Explain the desired behavior, inputs, outputs, and important constraints.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Studio web interface
+        - Offline RL pipeline
+        - Search or knowledge base
+        - Rollout or environment tools
+        - RL algorithms
+        - Evaluation or experiments
+        - Installation or packaging
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note any existing tools or workarounds you evaluated.
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to help implement or test this feature.

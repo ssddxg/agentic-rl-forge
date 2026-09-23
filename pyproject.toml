@@ -1,0 +1,140 @@
+[build-system]
+requires = ["hatchling>=1.27,<1.32"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-rl-forge"
+version = "0.3.0"
+description = "A local Agent RL workbench for running, evaluating, and training search and tool-using agents."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "AgenticRLForge contributors" }]
+keywords = [
+  "agentic-rl",
+  "reinforcement-learning",
+  "verl",
+  "grpo",
+  "search-agent",
+  "tool-use",
+  "mcts",
+  "local-knowledge-base",
+  "rag",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
+dependencies = [
+  "httpx>=0.27,<1",
+  "jsonschema>=4.23,<5",
+  "orjson>=3.10,<4",
+  "pydantic>=2.8,<3",
+  "pyyaml>=6.0,<7",
+  "rich>=13.9,<15",
+  "tenacity>=9.0,<10",
+  "tomli>=2.0,<3; python_version < '3.11'",
+  "typer>=0.12,<1",
+]
+
+[project.optional-dependencies]
+server = [
+  "fastapi>=0.115,<1",
+  "python-multipart>=0.0.20,<1",
+  "uvicorn[standard]>=0.30,<1",
+]
+studio = [
+  "fastapi>=0.115,<1",
+  "python-multipart>=0.0.20,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "pypdf>=5,<7",
+  "python-docx>=1.1,<2",
+]
+research = [
+  "numpy>=1.26,<3",
+]
+data = [
+  "datasets>=3.0,<5",
+  "pyarrow>=17,<22",
+]
+object-store = [
+  "boto3>=1.35,<2",
+]
+signing = [
+  "cryptography>=50,<51",
+]
+dev = [
+  "build>=1.2,<2",
+  "mypy>=1.13,<2",
+  "pip-audit>=2.10,<3",
+  "pytest>=9.0.3,<10",
+  "pytest-asyncio>=1,<2",
+  "pytest-cov>=6.0,<7",
+  "ruff>=0.8,<1",
+  "types-jsonschema>=4.23,<5",
+  "types-PyYAML>=6.0,<7",
+  "twine>=6.0,<7",
+]
+
+[project.scripts]
+agentic-rl-forge = "agentic_rl_forge.cli:app"
+arf = "agentic_rl_forge.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/ssddxg/agentic-rl-forge"
+Documentation = "https://github.com/ssddxg/agentic-rl-forge#readme"
+Repository = "https://github.com/ssddxg/agentic-rl-forge"
+Issues = "https://github.com/ssddxg/agentic-rl-forge/issues"
+Changelog = "https://github.com/ssddxg/agentic-rl-forge/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentic_rl_forge"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests", "examples"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agentic_rl_forge"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+packages = ["agentic_rl_forge"]
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "agentic_rl_forge.integrations.verl_search_tool"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "datasets"
+ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = ["agentic_rl_forge"]
+omit = [
+  "*/integrations/verl_search_tool.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+skip_covered = true
+show_missing = true

@@ -1,0 +1,35 @@
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agentic-rl-forge:local
+    command:
+      - arf
+      - studio
+      - --data-dir
+      - /app/data
+      - --host
+      - 0.0.0.0
+      - --port
+      - "7860"
+      - --no-open
+      - --allow-network
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ARF_PORT:-7860}:7860"
+    volumes:
+      - type: volume
+        source: studio-data
+        target: /app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  studio-data:
