@@ -373,8 +373,8 @@ class ReleaseAuditor:
         return findings
 
     @staticmethod
-    def _find_recipe_shell() -> str | None:
-        if sys.platform != "win32":
+    def _find_recipe_shell(platform_name: str | None = None) -> str | None:
+        if (platform_name or sys.platform) != "win32":
             return shutil.which("bash")
 
         candidates: list[Path] = []
@@ -464,12 +464,17 @@ class ReleaseAuditor:
         *,
         timeout: int = 30,
     ) -> tuple[int, str]:
+        environment = dict(os.environ)
+        for name in tuple(environment):
+            if name.startswith("COV_CORE_") or name == "COVERAGE_PROCESS_START":
+                environment.pop(name)
         try:
             result = subprocess.run(
                 command,
                 cwd=self.project,
                 check=False,
                 capture_output=True,
+                env=environment,
                 text=True,
                 errors="replace",
                 timeout=timeout,

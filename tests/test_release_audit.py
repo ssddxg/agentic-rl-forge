@@ -133,6 +133,29 @@ def test_release_audit_command_tolerates_non_utf8_output(tmp_path: Path) -> None
     assert output == "\ufffd\n"
 
 
+def test_release_audit_command_isolates_coverage_hooks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COV_CORE_SOURCE", "agentic_rl_forge")
+    monkeypatch.setenv("COV_CORE_CONFIG", "pyproject.toml")
+    monkeypatch.setenv("COVERAGE_PROCESS_START", "pyproject.toml")
+
+    exit_code, output = ReleaseAuditor(tmp_path)._command(
+        (
+            sys.executable,
+            "-c",
+            (
+                "import os; print(any(name.startswith('COV_CORE_') or "
+                "name == 'COVERAGE_PROCESS_START' for name in os.environ))"
+            ),
+        )
+    )
+
+    assert exit_code == 0
+    assert output == "False\n"
+
+
 def test_release_audit_finds_git_bash_on_windows(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -144,14 +167,13 @@ def test_release_audit_finds_git_bash_on_windows(
     git.touch()
     bash.touch()
 
-    monkeypatch.setattr(release_module.sys, "platform", "win32")
     monkeypatch.setattr(
         release_module.shutil,
         "which",
         lambda command: str(git) if command == "git" else None,
     )
 
-    assert ReleaseAuditor._find_recipe_shell() == str(bash)
+    assert ReleaseAuditor._find_recipe_shell("win32") == str(bash)
 
 
 def test_current_repository_audit_has_no_documentation_placeholders(tmp_path: Path) -> None:
