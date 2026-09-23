@@ -2,23 +2,57 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import shutil
+from datetime import datetime, timedelta
 from pathlib import Path
+from threading import Event
 
 import httpx
 import pytest
 from typer.testing import CliRunner
 
 from agentic_rl_forge.cli import app
-from agentic_rl_forge.contracts import RunArtifactManifest, RunStatus
+from agentic_rl_forge.contracts import (
+    RunArtifactManifest,
+    RunHeartbeat,
+    RunLeaseToken,
+    RunStatus,
+    utc_now,
+)
 from agentic_rl_forge.pipelines import (
     SearchR1CollectionConfig,
     collect_search_r1,
     inspect_search_r1_plan,
     load_search_r1_collection_config,
 )
+from agentic_rl_forge.pipelines.search_r1 import _renew_run_lease
 from agentic_rl_forge.storage import RunArtifactBundle, SQLiteTrajectoryStore, TrajectoryQuery
+
+
+class RecordingRunLeaseStore:
+    def __init__(self) -> None:
+        self.renewed = Event()
+        self.renewal_count = 0
+
+    def renew_run_lease(
+        self,
+        run_id: str,
+        token: RunLeaseToken,
+        *,
+        ttl_s: float,
+        now: datetime | None = None,
+    ) -> RunHeartbeat:
+        self.renewal_count += 1
+        renewed_at = now or utc_now()
+        self.renewed.set()
+        return RunHeartbeat(
+            run_id=run_id,
+            owner_id=token.owner_id,
+            epoch=token.epoch,
+            acquired_at=renewed_at,
+            heartbeat_at=renewed_at,
+            lease_expires_at=renewed_at + timedelta(seconds=ttl_s),
+        )
 
 
 def collection_config(**updates: object) -> SearchR1CollectionConfig:
@@ -34,20 +68,11 @@ def collection_config(**updates: object) -> SearchR1CollectionConfig:
         "max_concurrency": 2,
         "model_max_concurrency": 2,
         "model_max_retries": 0,
-        "run_lease_ttl_s": 0.1,
+        "run_lease_ttl_s": 0.5,
         "heartbeat_interval_s": 0.02,
-        "slot_claim_ttl_s": 0.05,
+        "slot_claim_ttl_s": 0.5,
         "slot_claim_renewal_interval_s": 0.01,
     }
-    if os.name == "nt":
-        # Windows filesystem and thread-pool scheduling can exceed the tiny
-        # lease windows used to make the POSIX test fast, especially under
-        # coverage. Keep renewal intervals short so the behavior is exercised.
-        values.update(
-            run_lease_ttl_s=30.0,
-            slot_claim_ttl_s=30.0,
-            slot_claim_renewal_interval_s=0.05,
-        )
     values.update(updates)
     return SearchR1CollectionConfig.model_validate(values)
 
@@ -262,6 +287,39 @@ async def test_search_r1_collection_persists_complete_mock_run(tmp_path: Path) -
     assert {item.trajectory_id for item in resumed_trajectories} == {
         item.trajectory_id for item in trajectories
     }
+
+
+@pytest.mark.asyncio
+async def test_run_lease_renewal_uses_persisted_heartbeat_deadline() -> None:
+    store = RecordingRunLeaseStore()
+    stop = asyncio.Event()
+    observed_at = utc_now() - timedelta(seconds=1)
+    heartbeat = RunHeartbeat(
+        run_id="run-delayed-heartbeat",
+        owner_id="worker-delayed-heartbeat",
+        epoch=1,
+        acquired_at=observed_at,
+        heartbeat_at=observed_at,
+        lease_expires_at=observed_at + timedelta(seconds=5),
+    )
+    renewal_task = asyncio.create_task(
+        _renew_run_lease(
+            store,  # type: ignore[arg-type]
+            heartbeat.run_id,
+            heartbeat.token,
+            initial_heartbeat=heartbeat,
+            ttl_s=5.0,
+            interval_s=0.5,
+            stop=stop,
+        )
+    )
+
+    renewed_promptly = await asyncio.to_thread(store.renewed.wait, 0.2)
+    stop.set()
+    await renewal_task
+
+    assert renewed_promptly
+    assert store.renewal_count == 1
 
 
 def test_collection_config_loads_yaml_and_rejects_embedded_credentials(tmp_path: Path) -> None:

@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 import uvicorn
+from click import unstyle
 from typer.testing import CliRunner
 
 import agentic_rl_forge.cli as cli_module
@@ -59,7 +60,7 @@ def test_studio_command_requires_explicit_network_opt_in(
         ["studio", "--data-dir", str(tmp_path), "--host", "0.0.0.0", "--no-open"],
     )
     assert denied.exit_code != 0
-    assert "--allow-network" in (denied.stdout + denied.stderr)
+    assert "--allow-network" in unstyle(denied.output)
 
     captured: dict[str, Any] = {}
     monkeypatch.setattr(

@@ -98,6 +98,9 @@ def test_local_blob_store_is_conditional_and_path_safe(tmp_path: Path) -> None:
     assert created.blob.etag is not None
     assert created.blob.last_modified is not None
     assert store.list("runs/1") == ("runs/1/data.json",)
+    store.put_if_absent("runs/10/data.json", b"other")
+    assert store.list("runs/1/") == ("runs/1/data.json",)
+    assert store.list("runs/1") == ("runs/1/data.json", "runs/10/data.json")
     assert store.head("missing") is None
     with pytest.raises(KeyError):
         store.get("missing")

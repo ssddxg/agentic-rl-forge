@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from agentic_rl_forge.cli import app
@@ -533,4 +534,4 @@ def test_promotion_archive_cli_supports_trusted_inspection_and_unpack(tmp_path: 
     assert '"attestation_verification"' in unpacked.stdout
     assert ExperimentPromotionArchive.verify_directory(destination) == record
     assert missing_trust.exit_code == 2
-    assert "requires --attestation" in missing_trust.stderr
+    assert "requires --attestation" in unstyle(missing_trust.output)

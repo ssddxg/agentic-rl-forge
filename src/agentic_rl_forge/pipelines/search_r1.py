@@ -5,6 +5,7 @@ import hashlib
 import json
 from collections import Counter
 from contextlib import suppress
+from datetime import timedelta
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -17,6 +18,7 @@ from agentic_rl_forge import __version__
 from agentic_rl_forge.contracts import (
     ContractModel,
     RolloutSlot,
+    RunHeartbeat,
     RunKind,
     RunLeaseToken,
     RunManifest,
@@ -24,6 +26,7 @@ from agentic_rl_forge.contracts import (
     TaskSpec,
     TrajectoryStatus,
     new_id,
+    utc_now,
 )
 from agentic_rl_forge.environments import HTTPRetrievalTool, LocalToolEnvironment
 from agentic_rl_forge.evaluation import BenchmarkAggregator
@@ -334,6 +337,7 @@ async def collect_search_r1(
             sqlite_store,
             run_manifest.run_id,
             lease.token,
+            initial_heartbeat=lease,
             ttl_s=config.run_lease_ttl_s,
             interval_s=config.heartbeat_interval_s,
             stop=heartbeat_stop,
@@ -576,22 +580,36 @@ async def _renew_run_lease(
     run_id: str,
     token: RunLeaseToken,
     *,
+    initial_heartbeat: RunHeartbeat,
     ttl_s: float,
     interval_s: float,
     stop: asyncio.Event,
 ) -> None:
+    renewal_interval = timedelta(seconds=interval_s)
+    next_renewal_at = initial_heartbeat.heartbeat_at + renewal_interval
     while True:
-        try:
-            await asyncio.wait_for(stop.wait(), timeout=interval_s)
-        except asyncio.TimeoutError:
-            await asyncio.to_thread(
-                store.renew_run_lease,
-                run_id,
-                token,
-                ttl_s=ttl_s,
-            )
-        else:
+        if stop.is_set():
             return
+        delay_s = min(
+            interval_s,
+            max(0.0, (next_renewal_at - utc_now()).total_seconds()),
+        )
+        if delay_s > 0:
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=delay_s)
+            except TimeoutError:
+                pass
+            else:
+                return
+        if stop.is_set():
+            return
+        heartbeat = await asyncio.to_thread(
+            store.renew_run_lease,
+            run_id,
+            token,
+            ttl_s=ttl_s,
+        )
+        next_renewal_at = heartbeat.heartbeat_at + renewal_interval
 
 
 def _load_tasks(

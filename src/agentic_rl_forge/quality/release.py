@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -315,7 +317,7 @@ class ReleaseAuditor:
         return findings
 
     def _quality_commands(self) -> list[AuditFinding]:
-        commands = (
+        commands: list[tuple[str, tuple[str, ...]]] = [
             ("quality.ruff", (sys.executable, "-m", "ruff", "check", ".")),
             (
                 "quality.format",
@@ -335,13 +337,18 @@ class ReleaseAuditor:
                 (sys.executable, "-m", "mypy", "src", "examples/offline_pipeline.py"),
             ),
             ("quality.pytest", (sys.executable, "-m", "pytest", "-q")),
-            (
-                "quality.recipe-syntax",
-                ("bash", "-n", "recipes/verl/run_search_r1_grpo.sh"),
-            ),
             ("quality.pip-check", (sys.executable, "-m", "pip", "check")),
             ("quality.pip-audit", (sys.executable, "-m", "pip_audit")),
-        )
+        ]
+        recipe_shell = self._find_recipe_shell()
+        if recipe_shell is not None:
+            commands.insert(
+                4,
+                (
+                    "quality.recipe-syntax",
+                    (recipe_shell, "-n", "recipes/verl/run_search_r1_grpo.sh"),
+                ),
+            )
         findings = []
         for code, command in commands:
             exit_code, output = self._command(command, timeout=300)
@@ -355,7 +362,34 @@ class ReleaseAuditor:
                     tuple(output.splitlines()[-20:]) if exit_code else (),
                 )
             )
+        if recipe_shell is None:
+            findings.append(
+                self._finding(
+                    "quality.recipe-syntax",
+                    AuditSeverity.WARNING,
+                    "bash was not found; the verl recipe syntax check was skipped",
+                )
+            )
         return findings
+
+    @staticmethod
+    def _find_recipe_shell() -> str | None:
+        if sys.platform != "win32":
+            return shutil.which("bash")
+
+        candidates: list[Path] = []
+        git = shutil.which("git")
+        if git is not None:
+            candidates.append(Path(git).resolve().parent.parent / "bin" / "bash.exe")
+        for variable, relative in (
+            ("ProgramFiles", ("Git", "bin", "bash.exe")),
+            ("ProgramFiles(x86)", ("Git", "bin", "bash.exe")),
+            ("LOCALAPPDATA", ("Programs", "Git", "bin", "bash.exe")),
+        ):
+            root = os.environ.get(variable)
+            if root:
+                candidates.append(Path(root).joinpath(*relative))
+        return next((str(path) for path in candidates if path.is_file()), None)
 
     def _wheel_build(self) -> AuditFinding:
         with tempfile.TemporaryDirectory(prefix="arf-wheel-") as directory:
@@ -437,6 +471,7 @@ class ReleaseAuditor:
                 check=False,
                 capture_output=True,
                 text=True,
+                errors="replace",
                 timeout=timeout,
             )
         except (OSError, subprocess.TimeoutExpired) as error:

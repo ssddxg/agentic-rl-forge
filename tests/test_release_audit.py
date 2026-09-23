@@ -1,9 +1,11 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
+import agentic_rl_forge.quality.release as release_module
 from agentic_rl_forge.cli import app
 from agentic_rl_forge.contracts import AuditSeverity
 from agentic_rl_forge.quality import ReleaseAuditor
@@ -116,6 +118,40 @@ def test_strict_release_audit_requires_git_history(tmp_path: Path) -> None:
 
     assert not report.ready
     assert "git.initial-commit" in error_codes
+
+
+def test_release_audit_command_tolerates_non_utf8_output(tmp_path: Path) -> None:
+    exit_code, output = ReleaseAuditor(tmp_path)._command(
+        (
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(bytes((129, 10)))",
+        )
+    )
+
+    assert exit_code == 0
+    assert output == "\ufffd\n"
+
+
+def test_release_audit_finds_git_bash_on_windows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    git = tmp_path / "Git" / "cmd" / "git.exe"
+    bash = tmp_path / "Git" / "bin" / "bash.exe"
+    git.parent.mkdir(parents=True)
+    bash.parent.mkdir(parents=True)
+    git.touch()
+    bash.touch()
+
+    monkeypatch.setattr(release_module.sys, "platform", "win32")
+    monkeypatch.setattr(
+        release_module.shutil,
+        "which",
+        lambda command: str(git) if command == "git" else None,
+    )
+
+    assert ReleaseAuditor._find_recipe_shell() == str(bash)
 
 
 def test_current_repository_audit_has_no_documentation_placeholders(tmp_path: Path) -> None:

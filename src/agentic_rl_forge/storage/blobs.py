@@ -117,10 +117,15 @@ class LocalBlobStore:
     def list(self, prefix: str = "") -> tuple[str, ...]:
         normalized_prefix = self._normalize_prefix(prefix)
         root = self._filesystem_path(self.root)
+        scan_root = root
+        if prefix.endswith("/"):
+            scan_root = self._filesystem_path(self.root / normalized_prefix)
+            if not scan_root.is_dir():
+                return ()
         return tuple(
             sorted(
                 path.relative_to(root).as_posix()
-                for path in root.rglob("*")
+                for path in scan_root.rglob("*")
                 if path.is_file()
                 and not path.name.startswith(".")
                 and path.relative_to(root).as_posix().startswith(normalized_prefix)

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from threading import Event
 
 import pytest
 
@@ -11,13 +12,16 @@ from agentic_rl_forge.contracts import (
     AgentAction,
     Message,
     MessageRole,
+    RolloutSlot,
     SlotClaim,
     SlotClaimOutcome,
+    SlotClaimRelease,
     SlotClaimRenewal,
     TaskSpec,
     ToolSpec,
     Trajectory,
     VerifierSpec,
+    utc_now,
 )
 from agentic_rl_forge.environments import LocalToolEnvironment
 from agentic_rl_forge.rewards import ExactMatchOutcome, RewardEngine
@@ -90,6 +94,111 @@ class FailingRenewalCoordinator(SlotClaimCoordinator):
     ) -> SlotClaimRenewal:
         del claim, ttl_s, now
         raise RuntimeError("simulated claim renewal failure")
+
+
+class AgedClaimManager:
+    def __init__(self, *, acquisition_age_s: float) -> None:
+        self.acquisition_age_s = acquisition_age_s
+        self.claim: SlotClaim | None = None
+        self.renewals: list[SlotClaimRenewal] = []
+        self.releases: list[SlotClaimRelease] = []
+        self.renewed = Event()
+
+    def acquire(
+        self,
+        plan_id: str,
+        slot: RolloutSlot,
+        *,
+        owner_id: str,
+        ttl_s: float,
+        now: datetime | None = None,
+    ) -> SlotClaim:
+        acquired_at = (now or utc_now()) - timedelta(seconds=self.acquisition_age_s)
+        self.claim = SlotClaim(
+            claim_id=SlotClaim.expected_claim_id(plan_id, slot.slot_id, owner_id, 1),
+            plan_id=plan_id,
+            slot_id=slot.slot_id,
+            trajectory_id=slot.trajectory_id,
+            owner_id=owner_id,
+            epoch=1,
+            acquired_at=acquired_at,
+            expires_at=acquired_at + timedelta(seconds=ttl_s),
+        )
+        return self.claim
+
+    def assert_current(self, claim: SlotClaim, *, now: datetime | None = None) -> None:
+        assert self.claim == claim
+        assert not self.releases
+        effective_expiry = self.renewals[-1].expires_at if self.renewals else claim.expires_at
+        assert effective_expiry > (now or utc_now())
+
+    def renew(
+        self,
+        claim: SlotClaim,
+        *,
+        ttl_s: float,
+        now: datetime | None = None,
+    ) -> SlotClaimRenewal:
+        assert self.claim == claim
+        renewed_at = now or utc_now()
+        renewal_index = len(self.renewals) + 1
+        renewal = SlotClaimRenewal(
+            renewal_id=SlotClaimRenewal.expected_renewal_id(claim.claim_id, renewal_index),
+            claim_id=claim.claim_id,
+            plan_id=claim.plan_id,
+            slot_id=claim.slot_id,
+            owner_id=claim.owner_id,
+            epoch=claim.epoch,
+            renewal_index=renewal_index,
+            renewed_at=renewed_at,
+            expires_at=renewed_at + timedelta(seconds=ttl_s),
+        )
+        self.renewals.append(renewal)
+        self.renewed.set()
+        return renewal
+
+    def release(
+        self,
+        claim: SlotClaim,
+        *,
+        outcome: SlotClaimOutcome,
+        trajectory_id: str | None = None,
+        now: datetime | None = None,
+    ) -> SlotClaimRelease:
+        assert self.claim == claim
+        release = SlotClaimRelease(
+            claim_id=claim.claim_id,
+            plan_id=claim.plan_id,
+            slot_id=claim.slot_id,
+            owner_id=claim.owner_id,
+            epoch=claim.epoch,
+            outcome=outcome,
+            released_at=now or utc_now(),
+            trajectory_id=trajectory_id,
+        )
+        self.releases.append(release)
+        return release
+
+
+class RenewalSignalPolicy:
+    version = "renewal-signal-policy-v1"
+
+    def __init__(self, renewed: Event) -> None:
+        self.renewed = renewed
+
+    async def generate(
+        self,
+        messages: tuple[Message, ...],
+        tools: tuple[ToolSpec, ...],
+        request: GenerationRequest,
+    ) -> PolicyOutput:
+        del messages, tools, request
+        if not await asyncio.to_thread(self.renewed.wait, 0.1):
+            raise RuntimeError("overdue claim renewal did not start promptly")
+        return PolicyOutput(
+            action=AgentAction(kind=ActionKind.FINAL, final_answer="yes"),
+            generated_token_count=1,
+        )
 
 
 class PartialPersistenceCallback:
@@ -266,3 +375,37 @@ async def test_slot_claim_renewal_failure_cancels_rollout_before_persistence(
     release = claims.get_release(claim)
     assert release is not None
     assert release.outcome is SlotClaimOutcome.ABANDONED
+
+
+async def test_slot_claim_renewal_uses_persisted_acquisition_deadline() -> None:
+    task = planned_task()
+    plan = RolloutPlanBuilder().build(
+        (task,),
+        policy_version=RenewalSignalPolicy.version,
+        source_sha256="0" * 64,
+        config_digest="1" * 64,
+        rollouts_per_task=1,
+        seed=10,
+    )
+    claims = AgedClaimManager(acquisition_age_s=0.5)
+    policy = RenewalSignalPolicy(claims.renewed)
+
+    batch = await RolloutScheduler(
+        lambda: AgentLoop(
+            policy=policy,
+            environment=LocalToolEnvironment(()),
+            rewards=RewardEngine((ExactMatchOutcome(),)),
+        ),
+        slot_claims=claims,
+        claim_owner_id="delayed-acquisition-worker",
+        claim_ttl_s=2.0,
+        claim_renewal_interval_s=0.2,
+    ).collect(
+        (task,),
+        rollouts_per_task=1,
+        plan=plan,
+    )
+
+    assert len(batch.trajectories) == 1
+    assert claims.renewals
+    assert claims.releases[0].outcome is SlotClaimOutcome.COMPLETED

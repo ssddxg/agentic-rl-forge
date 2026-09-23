@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import cast
 
 from agentic_rl_forge.contracts import (
@@ -14,6 +15,7 @@ from agentic_rl_forge.contracts import (
     TaskSpec,
     Trajectory,
     new_id,
+    utc_now,
 )
 from agentic_rl_forge.rollout.callbacks import (
     CompositeRolloutCallback,
@@ -288,18 +290,30 @@ class RolloutScheduler:
     ) -> None:
         if self._renewable_slot_claims is None or self._claim_renewal_interval_s is None:
             raise RuntimeError("slot claim renewal is not configured")
-        while not stop.is_set():
-            try:
-                await asyncio.wait_for(
-                    stop.wait(),
-                    timeout=self._claim_renewal_interval_s,
-                )
-            except TimeoutError:
-                await asyncio.to_thread(
-                    self._renewable_slot_claims.renew,
-                    claim,
-                    ttl_s=self._claim_ttl_s,
-                )
+        renewal_interval = timedelta(seconds=self._claim_renewal_interval_s)
+        next_renewal_at = claim.acquired_at + renewal_interval
+        while True:
+            if stop.is_set():
+                return
+            delay_s = min(
+                self._claim_renewal_interval_s,
+                max(0.0, (next_renewal_at - utc_now()).total_seconds()),
+            )
+            if delay_s > 0:
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=delay_s)
+                except TimeoutError:
+                    pass
+                else:
+                    return
+            if stop.is_set():
+                return
+            renewal = await asyncio.to_thread(
+                self._renewable_slot_claims.renew,
+                claim,
+                ttl_s=self._claim_ttl_s,
+            )
+            next_renewal_at = renewal.renewed_at + renewal_interval
 
     @staticmethod
     def _validate_plan(
