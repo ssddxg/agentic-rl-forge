@@ -62,7 +62,7 @@ research = [
 ]
 data = [
   "datasets>=3.0,<5",
-  "pyarrow>=17,<22",
+  "pyarrow>=17,<26",
 ]
 object-store = [
   "boto3>=1.35,<2",
