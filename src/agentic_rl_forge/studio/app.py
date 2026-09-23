@@ -38,6 +38,9 @@ from .security import (
 
 LOGGER = logging.getLogger(__name__)
 _MULTIPART_OVERHEAD_ALLOWANCE = 1024 * 1024
+# Starlette <=1.6 reduces a bracketed IPv6 Host header to "[", while >=1.7 preserves
+# "[::1]". The API security middleware still validates the parsed address as loopback.
+_TRUSTED_LOCAL_HOSTS = sorted((*LOCAL_HOSTS, "[", "[::1]"))
 _STUDIO_CSP = "; ".join(
     (
         "default-src 'self'",
@@ -318,9 +321,7 @@ def create_studio_app(
     )
     app.add_middleware(
         TrustedHostMiddleware,
-        # Starlette currently splits IPv6 Host headers at the first colon and sees "[".
-        # The stricter middleware immediately outside this one has already validated ::1.
-        allowed_hosts=["*"] if allow_network else sorted((*LOCAL_HOSTS, "[")),
+        allowed_hosts=["*"] if allow_network else _TRUSTED_LOCAL_HOSTS,
     )
     app.add_middleware(
         LocalAPISecurityMiddleware,

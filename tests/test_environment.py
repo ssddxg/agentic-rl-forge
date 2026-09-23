@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -119,3 +120,40 @@ async def test_environment_rejects_invalid_arguments_without_executing() -> None
     assert not result[0].ok
     assert result[0].error_code == "invalid_arguments"
     assert executions == 0
+
+
+@pytest.mark.asyncio
+async def test_environment_handles_legacy_asyncio_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class LegacyAsyncioTimeoutError(Exception):
+        pass
+
+    async def raise_legacy_asyncio_timeout(
+        awaitable: object,
+        timeout: float | None = None,
+    ) -> object:
+        del timeout
+        close = getattr(awaitable, "close", None)
+        if callable(close):
+            close()
+        raise LegacyAsyncioTimeoutError
+
+    monkeypatch.setattr(asyncio, "TimeoutError", LegacyAsyncioTimeoutError)
+    monkeypatch.setattr(asyncio, "wait_for", raise_legacy_asyncio_timeout)
+    spec = ToolSpec(
+        name="read",
+        description="Read one value.",
+        input_schema={"type": "object", "additionalProperties": False},
+        side_effect=SideEffect.READ,
+    )
+    environment = LocalToolEnvironment((FunctionTool(spec, lambda arguments, context: "value"),))
+    session_id = await environment.create_session(stateful_task(spec))
+
+    result = await environment.execute(
+        session_id,
+        (ToolCall(call_id="timed-out-call", name="read", arguments={}),),
+    )
+
+    assert not result[0].ok
+    assert result[0].error_code == "timeout"

@@ -162,7 +162,7 @@ class LocalToolEnvironment(AgentEnvironment):
                 tool.execute(call.arguments, context),
                 timeout=float(tool.spec.timeout_s),
             )
-        except TimeoutError:
+        except asyncio.TimeoutError:
             return self._error_result(call, "timeout", started)
         except Exception as error:
             return self._error_result(

@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 import pytest
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agentic_rl_forge.studio.api import StudioServices
 from agentic_rl_forge.studio.app import create_studio_app
@@ -484,6 +485,10 @@ async def test_network_mode_requires_request_origin_to_match_host(tmp_path: Path
 async def test_local_mode_accepts_ipv6_loopback(tmp_path: Path) -> None:
     services, _ = _services(tmp_path)
     app = create_studio_app(services=services)
+    trusted_host = next(
+        middleware for middleware in app.user_middleware if middleware.cls is TrustedHostMiddleware
+    )
+    assert {"::1", "[", "[::1]"} <= set(trusted_host.kwargs["allowed_hosts"])
 
     async with (
         app.router.lifespan_context(app),
@@ -494,4 +499,4 @@ async def test_local_mode_accepts_ipv6_loopback(tmp_path: Path) -> None:
     ):
         bootstrap = await client.get("/api/v1/bootstrap")
 
-    assert bootstrap.status_code == 200
+    assert bootstrap.status_code == 200, bootstrap.text

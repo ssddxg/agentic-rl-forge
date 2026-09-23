@@ -597,7 +597,7 @@ async def _renew_run_lease(
         if delay_s > 0:
             try:
                 await asyncio.wait_for(stop.wait(), timeout=delay_s)
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 pass
             else:
                 return

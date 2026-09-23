@@ -102,11 +102,11 @@ The audit fails when any error-level finding remains:
 | Quality | Ruff lint and formatting, strict Mypy, Pytest, and recipe syntax pass |
 | Packaging | A wheel is built successfully from the current source tree |
 
-Warnings do not fail the report but must be reviewed. Before the first public push, create one
-clean root commit, configure `origin`, rerun the strict audit, and preserve the resulting JSON
-report with the release artifacts. The package source, issue, documentation, and changelog URLs
-are configured for the canonical GitHub repository; the absent remote warning disappears after
-the local checkout is connected to that repository.
+Warnings do not fail the report but must be reviewed. When preparing a new repository for its
+first public push, create one clean root commit, configure `origin`, rerun the strict audit, and
+preserve the resulting JSON report with the release artifacts. This repository already uses its
+canonical GitHub URLs; an absent-remote warning only applies to source archives or local checkouts
+that have not been connected to a remote.
 
 For published collection examples, verify and pack each run into an independent release unit:
 

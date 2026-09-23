@@ -322,6 +322,61 @@ async def test_run_lease_renewal_uses_persisted_heartbeat_deadline() -> None:
     assert store.renewal_count == 1
 
 
+@pytest.mark.asyncio
+async def test_run_lease_renewal_handles_legacy_asyncio_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class LegacyAsyncioTimeoutError(Exception):
+        pass
+
+    original_wait_for = asyncio.wait_for
+    wait_count = 0
+
+    async def raise_first_legacy_timeout(
+        awaitable: object,
+        timeout: float | None = None,
+    ) -> object:
+        nonlocal wait_count
+        wait_count += 1
+        if wait_count == 1:
+            close = getattr(awaitable, "close", None)
+            if callable(close):
+                close()
+            raise LegacyAsyncioTimeoutError
+        return await original_wait_for(awaitable, timeout=timeout)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(asyncio, "TimeoutError", LegacyAsyncioTimeoutError)
+    monkeypatch.setattr(asyncio, "wait_for", raise_first_legacy_timeout)
+    store = RecordingRunLeaseStore()
+    stop = asyncio.Event()
+    observed_at = utc_now()
+    heartbeat = RunHeartbeat(
+        run_id="run-legacy-timeout",
+        owner_id="worker-legacy-timeout",
+        epoch=1,
+        acquired_at=observed_at,
+        heartbeat_at=observed_at,
+        lease_expires_at=observed_at + timedelta(seconds=10),
+    )
+    renewal_task = asyncio.create_task(
+        _renew_run_lease(
+            store,  # type: ignore[arg-type]
+            heartbeat.run_id,
+            heartbeat.token,
+            initial_heartbeat=heartbeat,
+            ttl_s=10.0,
+            interval_s=5.0,
+            stop=stop,
+        )
+    )
+
+    assert await asyncio.to_thread(store.renewed.wait, 0.2)
+    stop.set()
+    await renewal_task
+
+    assert store.renewal_count == 1
+
+
 def test_collection_config_loads_yaml_and_rejects_embedded_credentials(tmp_path: Path) -> None:
     config_path = tmp_path / "collection.yaml"
     config_path.write_text(

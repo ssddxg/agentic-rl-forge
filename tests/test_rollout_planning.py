@@ -333,7 +333,23 @@ async def test_rollout_plan_resumes_only_missing_slots_after_callback_failure(
 
 async def test_slot_claim_renewal_failure_cancels_rollout_before_persistence(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    class LegacyAsyncioTimeoutError(Exception):
+        pass
+
+    async def raise_legacy_asyncio_timeout(
+        awaitable: object,
+        timeout: float | None = None,
+    ) -> object:
+        del timeout
+        close = getattr(awaitable, "close", None)
+        if callable(close):
+            close()
+        raise LegacyAsyncioTimeoutError
+
+    monkeypatch.setattr(asyncio, "TimeoutError", LegacyAsyncioTimeoutError)
+    monkeypatch.setattr(asyncio, "wait_for", raise_legacy_asyncio_timeout)
     task = planned_task()
     plan = RolloutPlanBuilder().build(
         (task,),
