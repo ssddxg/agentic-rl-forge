@@ -5,6 +5,10 @@ on:
     tags:
       - "v*.*.*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -123,6 +127,7 @@ jobs:
 
   publish-pypi:
     needs: build
+    if: vars.PYPI_PUBLISH_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -138,12 +143,13 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
 
   publish-github:
-    needs: publish-pypi
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           name: python-package-distributions
@@ -157,7 +163,53 @@ jobs:
       - name: Publish GitHub release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "${GITHUB_REF_NAME}" dist/* release-evidence/release-audit.json
-          --verify-tag --generate-notes
-          --repo "${GITHUB_REPOSITORY}"
+        run: |
+          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          args=(
+            "${GITHUB_REF_NAME}"
+            dist/*
+            release-evidence/release-audit.json
+            --verify-tag
+            --latest
+            --title "AgenticRLForge ${GITHUB_REF_NAME}"
+            --repo "${GITHUB_REPOSITORY}"
+          )
+          if [[ -f "${notes_file}" ]]; then
+            args+=(--notes-file "${notes_file}")
+          else
+            args+=(--generate-notes)
+          fi
+          gh release create "${args[@]}"
+
+  publish-container:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Log in to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+      - name: Build and publish the Studio image
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version="${GITHUB_REF_NAME#v}"
+          minor="${version%.*}"
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.description=Local-first Agent RL workbench and Studio" \
+            --label "org.opencontainers.image.licenses=Apache-2.0" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.version=${version}" \
+            --tag "${image}:${version}" \
+            --tag "${image}:${minor}" \
+            --tag "${image}:latest" \
+            .
+          docker push "${image}:${version}"
+          docker push "${image}:${minor}"
+          docker push "${image}:latest"

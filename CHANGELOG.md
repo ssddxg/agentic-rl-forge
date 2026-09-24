@@ -4,10 +4,12 @@ All notable changes to AgenticRLForge are documented here. The project follows s
 versioning. Versions before 0.3.0 were pre-public development milestones; public releases use Git
 tags in the form `vMAJOR.MINOR.PATCH`.
 
-## 0.3.0 — 2026-09-23
+## 0.3.0 — 2026-09-24
 
 First public source release.
 
+- Added polished GitHub Release notes, installable wheel and source assets, checksums, release-audit
+  evidence, and versioned GitHub Container Registry images for the public launch.
 - Repositioned Studio around the actual Agent RL engine: runtime diagnostics, a real inspectable
   agent trajectory, custom QA/corpus datasets, background offline RL pipeline runs, persistent
   results, and explicit separation between laptop validation and GPU weight training.

@@ -185,9 +185,14 @@ outputs, while `release-audit` verifies the source repository and package.
 ## Publishing the Python package
 
 The `Release` GitHub Actions workflow builds both the wheel and source distribution, requires the
-tag to equal `v` plus the version in `pyproject.toml`, runs strict package metadata checks, publishes
-to PyPI through trusted publishing, and creates a GitHub release containing the exact distributions.
-No long-lived PyPI API token is stored in the repository.
+tag to equal `v` plus the version in `pyproject.toml`, runs strict package metadata checks, creates
+a GitHub release containing the exact distributions and audit evidence, and publishes a versioned
+Studio image to GitHub Container Registry. GitHub Release and GHCR publication depend only on the
+verified build, so an optional package-index integration cannot suppress the release artifacts.
+
+PyPI publishing uses trusted publishing and runs only when the repository variable
+`PYPI_PUBLISH_ENABLED` is set to `true`. Configure the PyPI trusted publisher first, then enable
+the variable; no long-lived PyPI API token is stored in the repository.
 
 Before pushing a release tag:
 
@@ -198,9 +203,9 @@ scope.
 1. Move the intended changes under a dated heading in `CHANGELOG.md` and set the same version in
    `pyproject.toml` and `agentic_rl_forge.__version__`.
 2. Run `make release-check` and the strict `arf release-audit` command above from a clean commit.
-3. Configure the public repository as `origin`, add its source/issue URLs to `[project.urls]`, and
-   configure the PyPI project to trust the repository's `release.yml` workflow in environment
-   `pypi`.
+3. Configure the public repository as `origin` and add its source/issue URLs to `[project.urls]`.
+   To publish to PyPI as well, configure the PyPI project to trust the repository's `release.yml`
+   workflow in environment `pypi`, then set repository variable `PYPI_PUBLISH_ENABLED=true`.
 4. Create and push an annotated `vMAJOR.MINOR.PATCH` tag. Protect the `pypi` environment when a
    manual release approval is required.
 

@@ -10,6 +10,8 @@
 
 <p align="center">
   <a href="https://github.com/ssddxg/agentic-rl-forge/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ssddxg/agentic-rl-forge/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/ssddxg/agentic-rl-forge/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ssddxg/agentic-rl-forge?display_name=tag&amp;sort=semver" /></a>
+  <a href="https://github.com/ssddxg/agentic-rl-forge/pkgs/container/agentic-rl-forge"><img alt="GHCR image" src="https://img.shields.io/badge/GHCR-container-2496ED?logo=docker&amp;logoColor=white" /></a>
   <a href="https://www.python.org/"><img alt="Python 3.10–3.12" src="https://img.shields.io/badge/Python-3.10%E2%80%933.12-3776AB?logo=python&amp;logoColor=white" /></a>
   <a href="LICENSE"><img alt="Apache-2.0 license" src="https://img.shields.io/badge/License-Apache--2.0-6B7280" /></a>
   <a href="https://github.com/ssddxg/agentic-rl-forge"><img alt="Local first" src="https://img.shields.io/badge/Local--first-no%20usage%20tracking-16A34A" /></a>
@@ -158,7 +160,20 @@ Use `--json` with `corpus-check` or `search` for stable machine-readable output.
 See [`docs/local-search.md`](docs/local-search.md) for corpus format, limits, hot reload, and HTTP
 operations.
 
-### Docker Compose
+### Published container
+
+Run the released Studio image and open <http://127.0.0.1:7860>:
+
+```bash
+docker run --rm \
+  -p 127.0.0.1:7860:7860 \
+  -v agentic-rl-forge-data:/app/data \
+  ghcr.io/ssddxg/agentic-rl-forge:latest
+```
+
+Pin a version such as `0.3.0` instead of `latest` for a reproducible deployment.
+
+### Docker Compose from source
 
 If Docker Desktop or Docker Engine with Compose v2 is already installed:
 
@@ -170,21 +185,26 @@ Then open <http://127.0.0.1:7860>. Documents and settings are kept in the named 
 volume, so rebuilding or restarting the container does not remove them. Set `ARF_PORT` if port
 7860 is already in use. The port is published only to the local computer by default.
 
-### Install only the published CLI (after the first PyPI release)
+### Install the released Python package
 
-Once a release is available on PyPI, install only the library and commands with:
+Install the wheel attached to the GitHub Release without cloning the repository:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install "agentic-rl-forge[studio]"
+python -m pip install \
+  "agentic-rl-forge[studio] @ https://github.com/ssddxg/agentic-rl-forge/releases/download/v0.3.0/agentic_rl_forge-0.3.0-py3-none-any.whl"
 
+arf doctor --profile core --strict
 arf studio
 ```
 
 On Windows, activate with `.venv\Scripts\Activate.ps1`. A package installation provides the Python
 library and `arf` commands. Clone the repository when you also need `configs/`, `examples/`,
 `recipes/`, Docker Compose, or the development scripts.
+
+When PyPI trusted publishing is enabled, the shorter command is
+`python -m pip install "agentic-rl-forge[studio]"`.
 
 For manual source development, install
 `python -m pip install -e ".[dev,studio,research,signing]"` from a complete checkout.

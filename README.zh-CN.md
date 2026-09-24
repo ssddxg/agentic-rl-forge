@@ -10,6 +10,8 @@
 
 <p align="center">
   <a href="https://github.com/ssddxg/agentic-rl-forge/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ssddxg/agentic-rl-forge/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/ssddxg/agentic-rl-forge/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/ssddxg/agentic-rl-forge?display_name=tag&amp;sort=semver" /></a>
+  <a href="https://github.com/ssddxg/agentic-rl-forge/pkgs/container/agentic-rl-forge"><img alt="GHCR 镜像" src="https://img.shields.io/badge/GHCR-%E5%AE%B9%E5%99%A8%E9%95%9C%E5%83%8F-2496ED?logo=docker&amp;logoColor=white" /></a>
   <a href="https://www.python.org/"><img alt="Python 3.10–3.12" src="https://img.shields.io/badge/Python-3.10%E2%80%933.12-3776AB?logo=python&amp;logoColor=white" /></a>
   <a href="LICENSE"><img alt="Apache-2.0 license" src="https://img.shields.io/badge/License-Apache--2.0-6B7280" /></a>
   <a href="https://github.com/ssddxg/agentic-rl-forge"><img alt="本地优先" src="https://img.shields.io/badge/%E6%9C%AC%E5%9C%B0%E4%BC%98%E5%85%88-%E6%97%A0%E4%BD%BF%E7%94%A8%E8%B7%9F%E8%B8%AA-16A34A" /></a>
@@ -111,7 +113,20 @@ OpenAI 接口的本地或在线模型生成带引用的答案。数据默认保�
 bash scripts/start-studio.sh
 ```
 
-## Docker Compose
+## 使用已发布的容器镜像
+
+一条命令启动正式发布的 Studio 镜像：
+
+```bash
+docker run --rm \
+  -p 127.0.0.1:7860:7860 \
+  -v agentic-rl-forge-data:/app/data \
+  ghcr.io/ssddxg/agentic-rl-forge:latest
+```
+
+然后打开 <http://127.0.0.1:7860>。需要可复现部署时，把 `latest` 换成 `0.3.0`。
+
+## 从源码使用 Docker Compose
 
 已经安装 Docker Desktop 或 Docker Engine 时：
 
@@ -149,7 +164,21 @@ docker compose up --build
 
 ## 命令行用法
 
-安装源码版本：
+不克隆仓库，直接安装 GitHub Release 附带的 Python wheel：
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install \
+  "agentic-rl-forge[studio] @ https://github.com/ssddxg/agentic-rl-forge/releases/download/v0.3.0/agentic_rl_forge-0.3.0-py3-none-any.whl"
+.venv/bin/arf doctor --profile core --strict
+.venv/bin/arf studio
+```
+
+PyPI 可信发布启用后，也可以使用更短的
+`python -m pip install "agentic-rl-forge[studio]"`。Windows 请把上面三处 `.venv/bin/` 改为
+`.venv\Scripts\`。
+
+安装源码开发版本：
 
 ```bash
 python -m venv .venv
@@ -158,7 +187,7 @@ python -m venv .venv
 .venv/bin/arf studio
 ```
 
-Windows 请把上面三处 `.venv/bin/` 改为 `.venv\Scripts\`。
+Windows 请同样把 `.venv/bin/` 改为 `.venv\Scripts\`。
 
 构建本地文档语料并搜索：
 
