@@ -61,7 +61,7 @@ research = [
   "numpy>=1.26,<3",
 ]
 data = [
-  "datasets>=3.0,<5",
+  "datasets>=3.0,<6",
   "pyarrow>=17,<22",
 ]
 object-store = [
